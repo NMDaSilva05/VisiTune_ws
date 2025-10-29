@@ -1,41 +1,48 @@
-# Prerequisites
-*.d
-
-# Compiled Object files
-*.slo
-*.lo
+# Object files
 *.o
+*.ko
 *.obj
+*.elf
 
-# Precompiled Headers
-*.gch
-*.pch
-
-# Linker files
-*.ilk
-
-# Debugger Files
-*.pdb
-
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
-*.lai
-*.la
-*.a
+# Libraries
 *.lib
+*.a
+*.la
+*.lo
+
+# Shared objects (inc. Windows DLLs)
+*.dll
+*.so
+*.so.*
+*.dylib
 
 # Executables
 *.exe
 *.out
 *.app
+*.i*86
+*.x86_64
+*.hex
 
-# debug information files
-*.dwo
+# Misc
+*.map
+*.m
+*.png
+
+# Eclipse CDT project files
+.cproject
+.project
+.settings/
+
+# Vagrant directory
+.vagrant/
+
+# Include makefiles
+!Makefile
+*~
+
+# Libraries
+/lib
+
+#
+.metadata
