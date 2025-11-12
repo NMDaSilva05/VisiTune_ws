@@ -43,6 +43,8 @@
 UART_HandleTypeDef hlpuart1;
 DMA_HandleTypeDef hdma_lpuart1_rx;
 
+OSPI_HandleTypeDef hospi1;
+
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -52,13 +54,14 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_LPUART1_UART_Init(void);
+static void MX_OCTOSPI1_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-uint8_t RxData[2048];
+uint8_t RxData[1024];
 uint8_t script_send[1] = "S";
 int index = 0;
 
@@ -102,6 +105,7 @@ int main(void)
   MX_GPIO_Init();
   MX_DMA_Init();
   MX_LPUART1_UART_Init();
+  MX_OCTOSPI1_Init();
   /* USER CODE BEGIN 2 */
 
   HAL_UART_Receive_DMA(&hlpuart1, RxData, 1024);
@@ -208,6 +212,45 @@ static void MX_LPUART1_UART_Init(void)
   /* USER CODE BEGIN LPUART1_Init 2 */
 
   /* USER CODE END LPUART1_Init 2 */
+
+}
+
+/**
+  * @brief OCTOSPI1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_OCTOSPI1_Init(void)
+{
+
+  /* USER CODE BEGIN OCTOSPI1_Init 0 */
+
+  /* USER CODE END OCTOSPI1_Init 0 */
+
+  /* USER CODE BEGIN OCTOSPI1_Init 1 */
+
+  /* USER CODE END OCTOSPI1_Init 1 */
+  /* OCTOSPI1 parameter configuration*/
+  hospi1.Instance = OCTOSPI1;
+  hospi1.Init.FifoThreshold = 1;
+  hospi1.Init.DualQuad = HAL_OSPI_DUALQUAD_DISABLE;
+  hospi1.Init.MemoryType = HAL_OSPI_MEMTYPE_MICRON;
+  hospi1.Init.DeviceSize = 32;
+  hospi1.Init.ChipSelectHighTime = 1;
+  hospi1.Init.FreeRunningClock = HAL_OSPI_FREERUNCLK_DISABLE;
+  hospi1.Init.ClockMode = HAL_OSPI_CLOCK_MODE_0;
+  hospi1.Init.ClockPrescaler = 1;
+  hospi1.Init.SampleShifting = HAL_OSPI_SAMPLE_SHIFTING_NONE;
+  hospi1.Init.DelayHoldQuarterCycle = HAL_OSPI_DHQC_DISABLE;
+  hospi1.Init.ChipSelectBoundary = 0;
+  hospi1.Init.DelayBlockBypass = HAL_OSPI_DELAY_BLOCK_BYPASSED;
+  if (HAL_OSPI_Init(&hospi1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN OCTOSPI1_Init 2 */
+
+  /* USER CODE END OCTOSPI1_Init 2 */
 
 }
 

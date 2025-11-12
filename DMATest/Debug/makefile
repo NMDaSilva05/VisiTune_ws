@@ -60,8 +60,8 @@ all: main-build
 main-build: DMATest.elf secondary-outputs
 
 # Tool invocations
-DMATest.elf DMATest.map: $(OBJS) $(USER_OBJS) /home/nick/STM32CubeIDE/workspace_1.19.0/DMATest/STM32L4R5ZITXP_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "DMATest.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"/home/nick/STM32CubeIDE/workspace_1.19.0/DMATest/STM32L4R5ZITXP_FLASH.ld" --specs=nosys.specs -Wl,-Map="DMATest.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+DMATest.elf DMATest.map: $(OBJS) $(USER_OBJS) /home/nick/STM32CubeIDE/VisiTune_ws/DMATest/STM32L4R5ZITXP_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "DMATest.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"/home/nick/STM32CubeIDE/VisiTune_ws/DMATest/STM32L4R5ZITXP_FLASH.ld" --specs=nosys.specs -Wl,-Map="DMATest.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 

@@ -182,6 +182,64 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef* huart)
 
 }
 
+/**
+  * @brief OSPI MSP Initialization
+  * This function configures the hardware resources used in this example
+  * @param hospi: OSPI handle pointer
+  * @retval None
+  */
+void HAL_OSPI_MspInit(OSPI_HandleTypeDef* hospi)
+{
+  RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
+  if(hospi->Instance==OCTOSPI1)
+  {
+    /* USER CODE BEGIN OCTOSPI1_MspInit 0 */
+
+    /* USER CODE END OCTOSPI1_MspInit 0 */
+
+  /** Initializes the peripherals clock
+  */
+    PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_OSPI;
+    PeriphClkInit.OspiClockSelection = RCC_OSPICLKSOURCE_SYSCLK;
+    if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
+    {
+      Error_Handler();
+    }
+
+    /* Peripheral clock enable */
+    __HAL_RCC_OSPIM_CLK_ENABLE();
+    __HAL_RCC_OSPI1_CLK_ENABLE();
+    /* USER CODE BEGIN OCTOSPI1_MspInit 1 */
+
+    /* USER CODE END OCTOSPI1_MspInit 1 */
+
+  }
+
+}
+
+/**
+  * @brief OSPI MSP De-Initialization
+  * This function freeze the hardware resources used in this example
+  * @param hospi: OSPI handle pointer
+  * @retval None
+  */
+void HAL_OSPI_MspDeInit(OSPI_HandleTypeDef* hospi)
+{
+  if(hospi->Instance==OCTOSPI1)
+  {
+    /* USER CODE BEGIN OCTOSPI1_MspDeInit 0 */
+
+    /* USER CODE END OCTOSPI1_MspDeInit 0 */
+    /* Peripheral clock disable */
+    __HAL_RCC_OSPIM_CLK_DISABLE();
+    __HAL_RCC_OSPI1_CLK_DISABLE();
+    /* USER CODE BEGIN OCTOSPI1_MspDeInit 1 */
+
+    /* USER CODE END OCTOSPI1_MspDeInit 1 */
+  }
+
+}
+
 /* USER CODE BEGIN 1 */
 
 /* USER CODE END 1 */
