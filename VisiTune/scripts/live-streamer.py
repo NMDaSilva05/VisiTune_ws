@@ -407,7 +407,7 @@ def make_audio_packets(wav_path: str):
     total_bytes = len(raw)
     print(f"Total audio bytes: {total_bytes}")
 
-    AUDIO_MAX_PAYLOAD = MAX_DATA_SIZE
+    AUDIO_MAX_PAYLOAD = 4096 # MAX_DATA_SIZE
     packets = []
     seq = 0
     offset = 0
