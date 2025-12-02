@@ -157,7 +157,8 @@ volatile uint8_t ctrl_pkt_ready = 0;
 uint8_t ctrl_buf[16];
 
 q15_t filter_buf[DAC_HALF_SAMPLES];
-#define FFT_SIZE 1024
+/* FFT size auto-derives from audio payload: payload_bytes / 2 samples = FFT block size */
+#define FFT_SIZE (AUD_MAX_PAYLOAD_BYTES / 2u)
 #define FFT_INCREMENT (FFT_SIZE / 2)
 
 float32_t fft_in[FFT_SIZE];
@@ -192,6 +193,141 @@ static char read_keypad(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+// EQ Stuff
+typedef struct {
+    float a0, a1, a2;
+    float b1, b2;
+    float z1, z2;
+} biquad_t;
+
+static inline float biquad_run(biquad_t* bq, float in)
+{
+    float out = in * bq->a0 + bq->z1;
+    bq->z1 = in * bq->a1 + bq->z2 - bq->b1 * out;
+    bq->z2 = in * bq->a2 - bq->b2 * out;
+    return out;
+}
+
+#include <math.h>
+
+static biquad_t EQ_low, EQ_mid, EQ_high;
+
+static void biquad_low_shelf(biquad_t* bq, float gainDB, float freq, float fs);
+static void biquad_peak(biquad_t* bq, float gainDB, float freq, float Q, float fs);
+static void biquad_high_shelf(biquad_t* bq, float gainDB, float freq, float fs);
+
+void EQ_setGains(float lowDB, float midDB, float highDB)
+{
+    float fs = 24000.0f;  // your DAC sample rate
+    float midFreq = 1200.0f;
+    float Q = 0.7f;
+
+    biquad_low_shelf(&EQ_low, lowDB, 200.0f, fs);
+    biquad_peak(&EQ_mid,     midDB, midFreq, Q, fs);
+    biquad_high_shelf(&EQ_high, highDB, 6000.0f, fs);
+}
+
+static void biquad_low_shelf(biquad_t* bq, float gainDB, float freq, float fs)
+{
+    float A = powf(10.0f, gainDB / 40.0f);
+    float w0 = 2.0f * M_PI * freq / fs;
+    float cosw0 = cosf(w0);
+    float sinw0 = sinf(w0);
+
+    float alpha = sinw0 / 2.0f * sqrtf((A + 1/A) * (1.0f/0.707f - 1) + 2);
+
+    float b0 =    A*((A+1) - (A-1)*cosw0 + 2*sqrtf(A)*alpha);
+    float b1 =  2*A*((A-1) - (A+1)*cosw0);
+    float b2 =    A*((A+1) - (A-1)*cosw0 - 2*sqrtf(A)*alpha);
+    float a0 =       (A+1) + (A-1)*cosw0 + 2*sqrtf(A)*alpha;
+    float a1 =   -2*((A-1) + (A+1)*cosw0);
+    float a2 =       (A+1) + (A-1)*cosw0 - 2*sqrtf(A)*alpha;
+
+    bq->a0 = b0/a0;
+    bq->a1 = b1/a0;
+    bq->a2 = b2/a0;
+    bq->b1 = a1/a0;
+    bq->b2 = a2/a0;
+    bq->z1 = bq->z2 = 0;
+}
+
+static void biquad_peak(biquad_t* bq, float gainDB, float freq, float Q, float fs)
+{
+    float A = powf(10.0f, gainDB / 40.0f);
+    float w0 = 2.0f * M_PI * freq / fs;
+    float cosw0 = cosf(w0);
+    float sinw0 = sinf(w0);
+    float alpha = sinw0 / (2.0f * Q);
+
+    float b0 = 1 + alpha*A;
+    float b1 = -2*cosw0;
+    float b2 = 1 - alpha*A;
+    float a0 = 1 + alpha/A;
+    float a1 = -2*cosw0;
+    float a2 = 1 - alpha/A;
+
+    bq->a0 = b0/a0;
+    bq->a1 = b1/a0;
+    bq->a2 = b2/a0;
+    bq->b1 = a1/a0;
+    bq->b2 = a2/a0;
+    bq->z1 = bq->z2 = 0;
+}
+
+static void biquad_high_shelf(biquad_t* bq, float gainDB, float freq, float fs)
+{
+    float A = powf(10.0f, gainDB / 40.0f);
+    float w0 = 2.0f * M_PI * freq / fs;
+    float cosw0 = cosf(w0);
+    float sinw0 = sinf(w0);
+
+    float alpha = sinw0 / 2.0f * sqrtf((A + 1/A)*(1.0f/0.707f - 1) + 2);
+
+    float b0 =    A*((A+1) + (A-1)*cosw0 + 2*sqrtf(A)*alpha);
+    float b1 = -2*A*((A-1) + (A+1)*cosw0);
+    float b2 =    A*((A+1) + (A-1)*cosw0 - 2*sqrtf(A)*alpha);
+    float a0 =       (A+1) - (A-1)*cosw0 + 2*sqrtf(A)*alpha;
+    float a1 =    2*((A-1) - (A+1)*cosw0);
+    float a2 =       (A+1) - (A-1)*cosw0 - 2*sqrtf(A)*alpha;
+
+    bq->a0 = b0/a0;
+    bq->a1 = b1/a0;
+    bq->a2 = b2/a0;
+    bq->b1 = a1/a0;
+    bq->b2 = a2/a0;
+    bq->z1 = bq->z2 = 0;
+}
+
+void processEQ(int16_t* in, int16_t* out, uint16_t n)
+{
+    for (uint16_t i = 0; i < n; i++) {
+
+        // Normalize to float -1.0..1.0
+        float x = (float)in[i] * (1.0f / 32768.0f);
+
+        // 3-stage EQ
+        x = biquad_run(&EQ_low, x);
+        x = biquad_run(&EQ_mid, x);
+        x = biquad_run(&EQ_high, x);
+
+        // Clamp + convert back to int16
+        if (x > 1.0f) x = 1.0f;
+        if (x < -1.0f) x = -1.0f;
+
+        out[i] = (int16_t)(x * 32767.0f);
+    }
+}
+
+float mapSliderToDB(uint16_t slider)
+{
+    // slider = 0‥4096
+    // output = -12 dB to +12 dB
+    return (((float)slider / 4096.0f) * 24.0f) - 12.0f;
+}
+
+// END EQ Stuff
+
 
 /* USER CODE END 0 */
 
@@ -234,6 +370,8 @@ int main(void)
   MX_FATFS_Init();
   MX_SPI2_Init();
   /* USER CODE BEGIN 2 */
+
+  // EQ STuff
     tft_init();
     tft_fill_rect(0, 0, 480, 320, 0xAAAA);
     HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_SET);  // LED ON
@@ -419,10 +557,9 @@ int main(void)
             // Keep a local copy of MIDI state so you only advance MIDI_index while producing real output samples:
             uint32_t local_midi_index = MIDI_index;
             uint8_t local_midi_playing = MIDI_playing;
-            int32_t last_midi_sample = 0;
 
             // 1) Run FFT / filter to fill filter_buf (q15_t / int16_t out)
-            processFFT(src, filter_buf, num_samples); // filter_buf[] filled with int16_t in -32768..32767
+            processEQ(src, filter_buf, num_samples); // filter_buf[] filled with int16_t in -32768..32767
 
             // 2) Produce mixed samples into proc_buf (12-bit unsigned, right-aligned)
             for (uint16_t i = 0; i < num_samples; ++i) {
@@ -437,7 +574,6 @@ int main(void)
                 int32_t m = 0;
                 if (local_midi_playing && (local_midi_index < MIDI_lengths[sound_effect_index])) {
                     m = MIDI_effects[sound_effect_index][local_midi_index++];
-                    last_midi_sample = m;
                 } else if (local_midi_playing) {
                     // MIDI finished during this half -> stop further MIDI playback
                     local_midi_playing = 0;
@@ -447,7 +583,7 @@ int main(void)
                     m = 0;
                 }
 
-                int32_t mix = temp + m;
+                int32_t mix = temp + m; // (m / 2);
 
                 // Clip to signed 12-bit range
                 if (mix < -2048) mix = -2048;
@@ -1193,73 +1329,146 @@ static void ADC_ReadAll_Polling() {
             adc_buf[i] = HAL_ADC_GetValue(&hadc1);
         }
     }
+    float low_dB  = mapSliderToDB(adc_buf[0]);
+    float mid_dB  = mapSliderToDB(adc_buf[1]);
+    float high_dB = mapSliderToDB(adc_buf[2]);
+
+    EQ_setGains(low_dB, mid_dB, high_dB);
+
 }
 
 static void processFFT(const q15_t* in, q15_t* out, uint16_t num_samples) {
+    /*
+     * This implementation keeps FFT continuity across packet boundaries by
+     * maintaining the last FFT_INCREMENT samples from the previous call.
+     * For each incoming packet we form a combined buffer = prev_samples + current_samples
+     * and run overlapping FFT blocks across that stream. We only write the
+     * portion of the processed stream that corresponds to the current packet.
+     */
+
+    static float prev_samples[FFT_INCREMENT]; // last hop of previous packet (float)
+    static uint8_t prev_inited = 0;
+    if (!prev_inited) {
+        for (int i = 0; i < FFT_INCREMENT; ++i) prev_samples[i] = 0.0f;
+        prev_inited = 1;
+    }
+
+    // Convert incoming input to float and build combined buffer: prev + current
+    // combined_len = FFT_INCREMENT + num_samples
+    uint32_t combined_len = (uint32_t)FFT_INCREMENT + (uint32_t)num_samples;
+    // Use a local stack buffer sized to FFT_SIZE + FFT_INCREMENT (safe for our sizes)
+    float combined[FFT_SIZE + FFT_INCREMENT];
+
+    // copy prev
+    for (int i = 0; i < FFT_INCREMENT; ++i) combined[i] = prev_samples[i];
+
+    // copy current (convert q15 -> float)
+    for (uint32_t i = 0; i < (uint32_t)num_samples; ++i) {
+        combined[FFT_INCREMENT + i] = (float)in[i] / 32768.0f;
+    }
+
+    // Process windows across the combined stream
     uint32_t pos = 0;
-    while ((pos + FFT_INCREMENT) <= num_samples) {
-        for (int i = 0; i < FFT_SIZE; i++) {
-            float32_t sample = 0.0f;
-            if (pos + i < num_samples) {
-                sample = (float32_t)in[pos + i] / 32768.0f;  // q15 → float
-            }
-            fft_in[i] = sample * window[i];
+    while ((pos + FFT_SIZE) <= combined_len) {
+        // Analysis window
+        for (int i = 0; i < FFT_SIZE; ++i) {
+            fft_in[i] = combined[pos + i] * window[i];
         }
 
         arm_rfft_fast_f32(&rfft, fft_in, fft_out, 0);
 
-        int low_bin = 40;
-        int high_bin = 90;
-        // determine lowShelfGain (tied to adc_buf[0]
-        uint32_t dial0 = adc_buf[0];
-        if (dial0 < 15) dial0 = 0;
-        if (dial0 > 4000) dial0 = 4000;
-        uint32_t dial1 = adc_buf[1];
-        if (dial1 < 15) dial1 = 0;
-        if (dial1 > 4000) dial1 = 4000;
-        float32_t lowShelfGain = (dial0 * 1.0) / 2000 * 1.0f;
-        float32_t highShelfGain = (dial1 * 1.0) / 2000 * 1.0f;
+        // EQ gains (same as before)
+        int low_end = 60;
+        int mid_end = 300;
+        int max_bin = (FFT_SIZE / 2);
 
-        for (int b = 0; b < low_bin; b++) {
-            float32_t t = (float)b / (float)low_bin;  // 0..1
-            float32_t weight = lowShelfGain + (1.0f - lowShelfGain) * t;
-            fft_out[b * 2] *= weight;
-            fft_out[b * 2 + 1] *= weight;
-        }
+        uint32_t d_low = adc_buf[0]; if (d_low < 15) d_low = 0; if (d_low > 4000) d_low = 4000;
+        uint32_t d_mid = adc_buf[1]; if (d_mid < 15) d_mid = 0; if (d_mid > 4000) d_mid = 4000;
+        uint32_t d_high = adc_buf[2]; if (d_high < 15) d_high = 0; if (d_high > 4000) d_high = 4000;
 
-        for (int b = low_bin; b < high_bin; b++) {
-            //			float32_t t = (float)(b - high_bin) / (float)((300 - high_bin) - 1);
-            //// 0..1 			float32_t weight = 1.0f + (highShelfGain - 1.0f) * t;
-            float32_t t = (float)b / (float)low_bin;  // 0..1
-            float32_t weight = highShelfGain + (1.0f - highShelfGain) * t;
-            fft_out[b * 2] *= weight;
-            fft_out[b * 2 + 1] *= weight;
+        float32_t g_low = ((float)d_low) / 2000.0f;
+        float32_t g_mid = ((float)d_mid) / 2000.0f;
+        float32_t g_high = ((float)d_high) / 2000.0f;
+
+        for (int b = 0; b < max_bin; ++b) {
+            float32_t weight = 1.0f;
+            if (b < low_end) {
+                float32_t t = (float)b / (float)low_end;
+                weight = g_low + (1.0f - g_low) * t;
+            } else if (b < mid_end) {
+                float32_t t = (float)(b - low_end) / (float)(mid_end - low_end);
+                float32_t envelope = (t <= 0.5f) ? (t * 2.0f) : (2.0f * (1.0f - t));
+                weight = 1.0f + (g_mid - 1.0f) * envelope;
+            } else {
+                float32_t t = (float)(b - mid_end) / (float)(max_bin - mid_end);
+                weight = 1.0f + (g_high - 1.0f) * t;
+            }
+
+            // CMSIS rfft_fast layout:
+            // index 0 = Re(0)
+            // index 1 = Re(N/2) (Nyquist)
+            // for k=1..N/2-1: Re(k)=fft_out[2*k], Im(k)=fft_out[2*k+1]
+            if (b == 0) {
+                // Scale DC (fft_out[0]) and Nyquist (fft_out[1]) by low-weight
+                fft_out[0] *= weight;
+                fft_out[1] *= weight;
+            } else {
+                fft_out[2 * b] *= weight;     // Re(k)
+                fft_out[2 * b + 1] *= weight; // Im(k)
+            }
         }
 
         arm_rfft_fast_f32(&rfft, fft_out, fft_in, 1);
 
-        // don't get this
-        for (int i = 0; i < FFT_INCREMENT; i++) {
-            fft_in[i] += overlap[i];
-        }
-        // end don't get this
-
-        for (int i = 0; i < FFT_INCREMENT && pos + i < num_samples; i++) {
-            float32_t x = fft_in[i];
-            if (x > 0.8f) x = 0.8f;    // used to be 1.0
-            if (x < -0.8f) x = -0.8f;  // same
-            out[pos + i] = (int16_t)(x * 32767.0f);
-        }
-
+        // Synthesis window + overlap-add. We want to produce output samples corresponding to
+        // the range [FFT_INCREMENT .. FFT_INCREMENT + num_samples - 1] of the combined stream.
         for (int i = 0; i < FFT_INCREMENT; ++i) {
-            overlap[i] = fft_in[i + FFT_INCREMENT];
+            float32_t windowed = fft_in[i] * window[i];
+            float32_t x = windowed + overlap[i];
+
+            // gentle soft clip
+            if (x > 1.0f) x = 1.0f - (x - 1.0f) * 0.3f;
+            if (x < -1.0f) x = -1.0f + (-x - 1.0f) * 0.3f;
+
+            uint32_t combined_idx = pos + i;
+            // Only write samples that fall into the current packet region
+            if (combined_idx >= (uint32_t)FFT_INCREMENT && combined_idx < (uint32_t)FFT_INCREMENT + (uint32_t)num_samples) {
+                uint32_t out_idx = combined_idx - (uint32_t)FFT_INCREMENT;
+                out[out_idx] = (int16_t)(x * 32767.0f);
+            }
+        }
+
+        // save second half (synthesis-windowed) into overlap for next block
+        for (int i = 0; i < FFT_INCREMENT; ++i) {
+            overlap[i] = fft_in[i + FFT_INCREMENT] * window[i + FFT_INCREMENT];
         }
 
         pos += FFT_INCREMENT;
     }
+
+    // Save last FFT_INCREMENT samples from combined for next call's prev_samples
+    // If combined_len < FFT_INCREMENT this still copies valid values or zeros.
+    if (combined_len >= (uint32_t)FFT_INCREMENT) {
+        uint32_t start = combined_len - (uint32_t)FFT_INCREMENT;
+        for (int i = 0; i < FFT_INCREMENT; ++i) prev_samples[i] = combined[start + i];
+    } else {
+        // uncommon: pad start of prev_samples with zeros then copy combined
+        int pad = FFT_INCREMENT - (int)combined_len;
+        for (int i = 0; i < pad; ++i) prev_samples[i] = 0.0f;
+        for (uint32_t i = 0; i < combined_len; ++i) prev_samples[pad + i] = combined[i];
+    }
 }
 
 static char read_keypad(void) {
+    static uint32_t last_key = 0;
+    uint32_t now = HAL_GetTick();
+
+    if (now - last_key < 80) {
+    	keyPress = ' ';
+    	return;  // debounce
+    }
+    last_key = now;
+
     // Row pins
     GPIO_TypeDef* ROW_PORT[4] = {Row_1_GPIO_Port, Row_2_GPIO_Port, Row_3_GPIO_Port,
                                  Row_4_GPIO_Port};
@@ -1319,12 +1528,24 @@ static void MIDI_Check() {
             MIDI_playing = 1;
             break;
         case '4':
+            sound_effect_index = 4;
+            MIDI_index = 0;
+            MIDI_playing = 1;
             break;
         case '5':
+            sound_effect_index = 5;
+            MIDI_index = 0;
+            MIDI_playing = 1;
             break;
         case '6':
+            sound_effect_index = 6;
+            MIDI_index = 0;
+            MIDI_playing = 1;
             break;
         case 'B':
+            sound_effect_index = 7;
+            MIDI_index = 0;
+            MIDI_playing = 1;
             break;
         case '7':
             break;
@@ -1369,11 +1590,11 @@ static void protocol_soft_reset(void) {
 }
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
-    static uint32_t last = 0;
+    static uint32_t last_btn = 0;
     uint32_t now = HAL_GetTick();
 
-    if (now - last < 30) return;  // debounce
-    last = now;
+    if (now - last_btn < 30) return;  // debounce
+    last_btn = now;
 
     if (GPIO_Pin == REWIND_Pin)  // Rewind button
         rewind_flag = 1;
