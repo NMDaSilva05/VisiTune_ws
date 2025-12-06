@@ -29,6 +29,7 @@
 #include "packets.h"
 #include "sd_card.h"
 #include "tft.h"
+#include "eq_graph.h"
 
 /* USER CODE END Includes */
 
@@ -51,7 +52,7 @@
 
 // Packet size/overhead (must match Python script)
 #define PKT_OVERHEAD (PKT_SYNC_SIZE + PKT_HEADER_SIZE + PKT_CRC_SIZE)  // 11
-#define PKT_MAX_SIZE 0xFFFFu  // total packet: sync+header+payload+CRC
+#define PKT_MAX_SIZE 4200 // 0xFFFFu  // total packet: sync+header+payload+CRC
 
 #define IMG_PKT_MAX_SIZE PKT_MAX_SIZE
 #define AUD_PKT_MAX_SIZE PKT_MAX_SIZE
@@ -63,6 +64,12 @@
 // 2 bytes per 16-bit PCM sample => samples = bytes/2
 #define DAC_HALF_SAMPLES (AUD_MAX_PAYLOAD_BYTES / 2u)
 #define DAC_BUF_SAMPLES (2u * DAC_HALF_SAMPLES)
+
+// LED PD
+#define LED_GPIO_Port GPIOD
+#define LED_Pin 14
+#define Number_LEDs 256
+#define NUM_BINS 256
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -86,6 +93,8 @@ DMA_HandleTypeDef hdma_spi2_rx;
 
 TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
+TIM_HandleTypeDef htim4;
+DMA_HandleTypeDef hdma_tim4_ch3;
 
 /* USER CODE BEGIN PV */
 
@@ -133,6 +142,13 @@ uint8_t* audio_pkt_buf1 = (uint8_t*)&dac_buf[DAC_HALF_SAMPLES];  // second half
 
 // NEW: CRC storage for audio packets
 uint8_t audio_crc_buf[PKT_CRC_SIZE];
+
+// LED Driver
+ws2812_handleTypeDef ws2812;
+uint32_t now = 0;        // timing variable
+uint32_t next_demo = 10; // timing variable
+uint32_t next_fft = 0;
+int idle_leds = 0;
 
 // Flags
 volatile uint8_t image_pkt_ready = 0;
@@ -182,6 +198,7 @@ static void MX_DAC1_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_SPI2_Init(void);
+static void MX_TIM4_Init(void);
 /* USER CODE BEGIN PFP */
 static void uart_start_header_rx(void);
 static void processFFT(const q15_t* in, q15_t* out, uint16_t num_samples);
@@ -214,6 +231,88 @@ typedef struct {
 //    bq->z2 = in * bq->a2 - bq->b2 * out;
 //    return out;
 //}
+
+// EQ LED GRAPH functions
+
+void HAL_TIM_PWM_PulseFinishedHalfCpltCallback(TIM_HandleTypeDef *htim) {
+
+    if (htim->Instance == TIM4) {
+        ws2812_update_buffer(&ws2812, &ws2812.dma_buffer[0]);
+    }
+
+}
+
+// Done sending the second half of the DMA buffer - this can now be safely updated
+void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim) {
+
+    if (htim->Instance == TIM4) {
+        ws2812_update_buffer(&ws2812, &ws2812.dma_buffer[BUFFER_SIZE]);
+    }
+
+}
+
+void fft_to_magnitude(const float32_t *fft_raw, float32_t *mag_bins, uint32_t num_bins) {
+    // Bin 0 (DC)
+    mag_bins[0] = fabsf(fft_raw[0]);
+
+    // Bin 1 (Nyquist, real only)
+    if (num_bins > 1) {
+        mag_bins[1] = fabsf(fft_raw[1]);
+    }
+
+    // Bins 2 to num_bins-1: complex values, packed as interleaved real/imag starting at fft_raw[2]
+    for (uint32_t k = 2; k < num_bins; k++) {
+        float32_t re = fft_raw[2*(k-1)];     // real part
+        float32_t im = fft_raw[2*(k-1)+1];   // imag part
+        mag_bins[k] = sqrtf(re*re + im*im);
+    }
+}
+
+void magnitude_to_dB(float32_t *mag_bins, uint32_t num_bins)
+{
+    const float32_t floor_val = 1e-12f;
+    const float32_t scale = 20.0f / logf(10.0f);
+
+    for (uint32_t k = 0; k < num_bins; k++) {
+        float32_t x = mag_bins[k];
+        if (x < floor_val) x = floor_val;
+
+        mag_bins[k] = scale * logf(x);   // => dB value
+//        mag_bins[k] /= DAC_HALF_SAMPLES;
+//        mag_bins[k] = mag_bins[k] - (80.0f);   // shift -80..0 dB → 0..80
+    }
+}
+
+float32_t mag_bins[NUM_BINS]; // magnitude per bin
+
+void EQ_LED_Tick(arm_rfft_fast_instance_f32 *rfft) {
+    now = uwTick;
+
+    float32_t filter_buf_f32[DAC_HALF_SAMPLES];
+    float32_t fft_raw[NUM_BINS];  // raw FFT data
+
+    memset(filter_buf_f32, 0, sizeof(filter_buf_f32));
+    memset(fft_raw, 0, sizeof(fft_raw));
+    memset(mag_bins, 0, sizeof(mag_bins));
+
+    if (idle_leds) { zeroLedValues(&ws2812); }
+
+    if (now >= next_fft && !idle_leds){
+      arm_q15_to_float(filter_buf, filter_buf_f32, DAC_HALF_SAMPLES);
+      arm_rfft_fast_f32(rfft, filter_buf_f32, fft_raw, 0);
+      fft_to_magnitude(fft_raw, mag_bins, NUM_BINS);
+      magnitude_to_dB(mag_bins, NUM_BINS);
+      eq_graph_update_fft(&ws2812, mag_bins, NUM_BINS);
+      next_fft = now + 50;  // Update every 50ms (20 FPS)
+    }
+
+    // Render EQ graph every 10ms
+    if (now >= next_demo) {
+        eq_graph_tick(&ws2812);
+        next_demo = now + 50;
+    }
+}
+
 
 #include <math.h>
 
@@ -400,7 +499,6 @@ float mapKnobtoFreq(uint16_t knob)
 
 // END EQ Stuff
 
-
 /* USER CODE END 0 */
 
 /**
@@ -441,6 +539,7 @@ int main(void)
   MX_ADC1_Init();
   MX_FATFS_Init();
   MX_SPI2_Init();
+  MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
 
   // EQ STuff
@@ -456,6 +555,10 @@ int main(void)
 
     /* Start TIM2 (48 kHz trigger) */
     HAL_TIM_Base_Start(&htim2);
+
+    // LEDS
+    ws2812_init(&ws2812, &htim4, TIM_CHANNEL_3, Number_LEDs);
+    eq_graph_set(&ws2812, EQ_GRAPH_FFT);
 
     /* Init DAC circular buffer to mid-scale (silence) */
     for (uint32_t i = 0; i < DAC_BUF_SAMPLES; ++i) {
@@ -632,6 +735,7 @@ int main(void)
 
             // 1) Run FFT / filter to fill filter_buf (q15_t / int16_t out)
             processEQ(src, filter_buf, num_samples); // filter_buf[] filled with int16_t in -32768..32767
+            EQ_LED_Tick(&rfft);
 
             // 2) Produce mixed samples into proc_buf (12-bit unsigned, right-aligned)
             for (uint16_t i = 0; i < num_samples; ++i) {
@@ -1140,6 +1244,65 @@ static void MX_TIM2_Init(void)
 }
 
 /**
+  * @brief TIM4 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM4_Init(void)
+{
+
+  /* USER CODE BEGIN TIM4_Init 0 */
+
+  /* USER CODE END TIM4_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+  TIM_OC_InitTypeDef sConfigOC = {0};
+
+  /* USER CODE BEGIN TIM4_Init 1 */
+
+  /* USER CODE END TIM4_Init 1 */
+  htim4.Instance = TIM4;
+  htim4.Init.Prescaler = 0;
+  htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim4.Init.Period = LED_CNT;
+  htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim4) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim4, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_PWM_Init(&htim4) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim4, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse = 0;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  if (HAL_TIM_PWM_ConfigChannel(&htim4, &sConfigOC, TIM_CHANNEL_3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM4_Init 2 */
+
+  /* USER CODE END TIM4_Init 2 */
+  HAL_TIM_MspPostInit(&htim4);
+
+}
+
+/**
   * Enable DMA controller clock
   */
 static void MX_DMA_Init(void)
@@ -1162,6 +1325,9 @@ static void MX_DMA_Init(void)
   /* DMA1_Channel4_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Channel4_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel4_IRQn);
+  /* DMA1_Channel5_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel5_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel5_IRQn);
 
 }
 
@@ -1278,14 +1444,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Alternate = GPIO_AF7_USART3;
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PD14 PD15 */
-  GPIO_InitStruct.Pin = GPIO_PIN_14|GPIO_PIN_15;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  GPIO_InitStruct.Alternate = GPIO_AF2_TIM4;
-  HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
-
   /*Configure GPIO pins : PC6 PC8 PC9 */
   GPIO_InitStruct.Pin = GPIO_PIN_6|GPIO_PIN_8|GPIO_PIN_9;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
@@ -1362,14 +1520,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
   GPIO_InitStruct.Alternate = GPIO_AF4_I2C1;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : PE0 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  GPIO_InitStruct.Alternate = GPIO_AF2_TIM4;
-  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
   HAL_NVIC_SetPriority(EXTI0_IRQn, 0, 0);

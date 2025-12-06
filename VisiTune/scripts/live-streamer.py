@@ -23,7 +23,7 @@ CTRL_CMD_AUDIO_STOP = 0x01
 
 PKT_FLAG_LAST  = 1 << 0
 
-MAX_SIZE       = 0xFFFF
+MAX_SIZE       = 4200
 OVERHEAD       = 11                 # 2 SOF + 7 header + 2 CRC
 MAX_DATA_SIZE  = MAX_SIZE - OVERHEAD  # max payload bytes
 
