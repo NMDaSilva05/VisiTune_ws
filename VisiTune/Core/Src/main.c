@@ -194,30 +194,37 @@ static char read_keypad(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
+arm_biquad_casd_df1_inst_f32 EQ;
+#define NUM_EQ_STAGES 4
+float eqCoeffs[5*NUM_EQ_STAGES];
+float eqState[4*NUM_EQ_STAGES];
+
+
 // EQ Stuff
 typedef struct {
     float a0, a1, a2;
     float b1, b2;
-    float z1, z2;
+    //float z1, z2;
 } biquad_t;
 
-static inline float biquad_run(biquad_t* bq, float in)
-{
-    float out = in * bq->a0 + bq->z1;
-    bq->z1 = in * bq->a1 + bq->z2 - bq->b1 * out;
-    bq->z2 = in * bq->a2 - bq->b2 * out;
-    return out;
-}
+//static inline float biquad_run(biquad_t* bq, float in)
+//{
+//    float out = in * bq->a0 + bq->z1;
+//    bq->z1 = in * bq->a1 + bq->z2 - bq->b1 * out;
+//    bq->z2 = in * bq->a2 - bq->b2 * out;
+//    return out;
+//}
 
 #include <math.h>
 
-static biquad_t EQ_low, EQ_mid, EQ_high;
+static biquad_t EQ_low, EQ_mid, EQ_high, EQ_window;
 
 static void biquad_low_shelf(biquad_t* bq, float gainDB, float freq, float fs);
 static void biquad_peak(biquad_t* bq, float gainDB, float freq, float Q, float fs);
 static void biquad_high_shelf(biquad_t* bq, float gainDB, float freq, float fs);
+void bpf_constant0dB(biquad_t* bq, float fc, float Q, float fs, uint8_t windowPower);
 
-void EQ_setGains(float lowDB, float midDB, float highDB)
+void EQ_setGains(float lowDB, float midDB, float highDB, uint8_t windowFilterStatus, float window_freq)
 {
     float fs = 24000.0f;  // your DAC sample rate
     float midFreq = 1200.0f;
@@ -226,6 +233,26 @@ void EQ_setGains(float lowDB, float midDB, float highDB)
     biquad_low_shelf(&EQ_low, lowDB, 200.0f, fs);
     biquad_peak(&EQ_mid,     midDB, midFreq, Q, fs);
     biquad_high_shelf(&EQ_high, highDB, 6000.0f, fs);
+    bpf_constant0dB(&EQ_window, window_freq, Q, fs, windowFilterStatus);
+
+    // Fill coeff array
+    eqCoeffs[0] = EQ_low.a0;  eqCoeffs[1] = EQ_low.a1;  eqCoeffs[2] = EQ_low.a2;
+    eqCoeffs[3] = -1 * EQ_low.b1;  eqCoeffs[4] = -1*EQ_low.b2;
+
+    eqCoeffs[5] = EQ_mid.a0;  eqCoeffs[6] = EQ_mid.a1;  eqCoeffs[7] = EQ_mid.a2;
+    eqCoeffs[8] = -1*EQ_mid.b1;  eqCoeffs[9] = -1*EQ_mid.b2;
+
+    eqCoeffs[10] = EQ_high.a0; eqCoeffs[11] = EQ_high.a1; eqCoeffs[12] = EQ_high.a2;
+    eqCoeffs[13] = -1*EQ_high.b1; eqCoeffs[14] = -1*EQ_high.b2;
+
+    eqCoeffs[15] = EQ_window.a0; eqCoeffs[16] = EQ_window.a1; eqCoeffs[17] = EQ_window.a2;
+    eqCoeffs[18] = -1*EQ_window.b1; eqCoeffs[19] = -1*EQ_window.b2;
+
+    static int first_init = 1;
+    if (first_init) {
+    	arm_biquad_cascade_df1_init_f32(&EQ, NUM_EQ_STAGES, eqCoeffs, eqState);
+    	first_init = 0;
+    }
 }
 
 static void biquad_low_shelf(biquad_t* bq, float gainDB, float freq, float fs)
@@ -249,7 +276,7 @@ static void biquad_low_shelf(biquad_t* bq, float gainDB, float freq, float fs)
     bq->a2 = b2/a0;
     bq->b1 = a1/a0;
     bq->b2 = a2/a0;
-    bq->z1 = bq->z2 = 0;
+    //bq->z1 = bq->z2 = 0;
 }
 
 static void biquad_peak(biquad_t* bq, float gainDB, float freq, float Q, float fs)
@@ -272,7 +299,7 @@ static void biquad_peak(biquad_t* bq, float gainDB, float freq, float Q, float f
     bq->a2 = b2/a0;
     bq->b1 = a1/a0;
     bq->b2 = a2/a0;
-    bq->z1 = bq->z2 = 0;
+    //bq->z1 = bq->z2 = 0;
 }
 
 static void biquad_high_shelf(biquad_t* bq, float gainDB, float freq, float fs)
@@ -296,22 +323,54 @@ static void biquad_high_shelf(biquad_t* bq, float gainDB, float freq, float fs)
     bq->a2 = b2/a0;
     bq->b1 = a1/a0;
     bq->b2 = a2/a0;
-    bq->z1 = bq->z2 = 0;
+    //bq->z1 = bq->z2 = 0;
 }
 
-void processEQ(int16_t* in, int16_t* out, uint16_t n)
+void bpf_constant0dB(biquad_t* bq, float fc, float Q, float fs, uint8_t windowPower)
 {
-    for (uint16_t i = 0; i < n; i++) {
+	if (windowPower) {
+		float w0    = 2.0f * M_PI * fc / fs;
+		float sinw0 = sinf(w0);
+		float cosw0 = cosf(w0);
+		float alpha = sinw0 / (2.0f * Q);
 
-        // Normalize to float -1.0..1.0
-        float x = (float)in[i] * (1.0f / 32768.0f);
+		// Cookbook formula #2 (0 dB peak gain)
+		float b0 =   Q * sinw0;
+		float b1 =   0.0f;
+		float b2 =  -Q * sinw0;
+		float a0 =   1.0f + alpha;
+		float a1 =  -2.0f * cosw0;
+		float a2 =   1.0f - alpha;
 
-        // 3-stage EQ
-        x = biquad_run(&EQ_low, x);
-        x = biquad_run(&EQ_mid, x);
-        x = biquad_run(&EQ_high, x);
+		// Normalize to a0
+		bq->a0 = b0/a0;
+		bq->a1 = b1/a0;
+		bq->a2 = b2/a0;
+		bq->b1 = a1/a0;
+		bq->b2 = a2/a0;
+	} else {
+		bq->a0 = 1;
+		bq->a1 = 0;
+		bq->a2 = 0;
+		bq->b1 = 0;
+		bq->b2 = 0;
+	}
+}
 
-        // Clamp + convert back to int16
+void processEQ(int16_t *in, int16_t *out, uint16_t n)
+{
+    static float inF[DAC_HALF_SAMPLES];
+    static float outF[DAC_HALF_SAMPLES];
+
+    for (int i = 0; i < n; i++)
+        inF[i] = (float)in[i] / 32768.0f;
+
+    arm_biquad_cascade_df1_f32(&EQ, inF, outF, n);
+
+    for (int i = 0; i < n; i++)
+    {
+        float x = outF[i];
+
         if (x > 1.0f) x = 1.0f;
         if (x < -1.0f) x = -1.0f;
 
@@ -319,11 +378,24 @@ void processEQ(int16_t* in, int16_t* out, uint16_t n)
     }
 }
 
+
 float mapSliderToDB(uint16_t slider)
 {
     // slider = 0‥4096
     // output = -12 dB to +12 dB
     return (((float)slider / 4096.0f) * 24.0f) - 12.0f;
+}
+
+float mapKnobtoFreq(uint16_t knob)
+{
+    float Fc_min = 20.0f;
+    float Fc_max = 3000.0f;
+
+    float x = (float)knob / 4095.0f;  // normalize
+    if (x < 0.0f) x = 0.0f;
+    if (x > 1.0f) x = 1.0f;
+
+    return Fc_min * powf(Fc_max / Fc_min, x);
 }
 
 // END EQ Stuff
@@ -582,6 +654,9 @@ int main(void)
                 } else {
                     m = 0;
                 }
+
+                temp = temp * 3 / 4; //new chat
+                m = m * 2 / 3; //new chat
 
                 int32_t mix = temp + m; // (m / 2);
 
@@ -1332,8 +1407,11 @@ static void ADC_ReadAll_Polling() {
     float low_dB  = mapSliderToDB(adc_buf[0]);
     float mid_dB  = mapSliderToDB(adc_buf[1]);
     float high_dB = mapSliderToDB(adc_buf[2]);
+    uint8_t windowFilterStatus = (adc_buf[3] < 4000);
+    float window_freq = mapKnobtoFreq(adc_buf[3]);
 
-    EQ_setGains(low_dB, mid_dB, high_dB);
+
+    EQ_setGains(low_dB, mid_dB, high_dB, windowFilterStatus, window_freq);
 
 }
 
