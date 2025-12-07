@@ -37,7 +37,7 @@ Core/Src/eq_graph.o: ../Core/Src/eq_graph.c ../Core/Inc/main.h \
  ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_uart_ex.h \
  ../Core/Inc/ws2812.h ../Core/Inc/main.h ../Core/Inc/eq_graph.h \
  ../Core/Inc/ws2812.h \
- C:/Users/tvalencia/umich/fa25/eecs373/project/bandpass/VisiTune/Drivers/CMSIS/CMSIS-DSP/arm_math.h \
+ /home/nick/STM32CubeIDE/VisiTune_ws/VisiTune/Drivers/CMSIS/CMSIS-DSP/arm_math.h \
  ../Drivers/CMSIS/Include/cmsis_compiler.h
 ../Core/Inc/main.h:
 ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal.h:
@@ -80,5 +80,5 @@ Core/Src/eq_graph.o: ../Core/Src/eq_graph.c ../Core/Inc/main.h \
 ../Core/Inc/main.h:
 ../Core/Inc/eq_graph.h:
 ../Core/Inc/ws2812.h:
-C:/Users/tvalencia/umich/fa25/eecs373/project/bandpass/VisiTune/Drivers/CMSIS/CMSIS-DSP/arm_math.h:
+/home/nick/STM32CubeIDE/VisiTune_ws/VisiTune/Drivers/CMSIS/CMSIS-DSP/arm_math.h:
 ../Drivers/CMSIS/Include/cmsis_compiler.h:
