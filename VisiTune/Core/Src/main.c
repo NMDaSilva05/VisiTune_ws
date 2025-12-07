@@ -57,7 +57,7 @@ typedef enum { BTN_EVENT_PLAY_PAUSE = 'P', BTN_EVENT_NEXT = 'N', BTN_EVENT_PREV 
 
 // Packet size/overhead (must match Python script)
 #define PKT_OVERHEAD (PKT_SYNC_SIZE + PKT_HEADER_SIZE + PKT_CRC_SIZE)  // 11
-#define PKT_MAX_SIZE 4200  // 0xFFFFu  // total packet: sync+header+payload+CRC
+#define PKT_MAX_SIZE 0xFFFFu  // total packet: sync+header+payload+CRC
 
 #define IMG_PKT_MAX_SIZE PKT_MAX_SIZE
 #define AUD_PKT_MAX_SIZE PKT_MAX_SIZE
@@ -610,7 +610,6 @@ int main(void) {
         keyPress = read_keypad();
         ADC_ReadAll_Polling();
         MIDI_Check();
-
 
         handle_ctrl_packet();
         handle_image_packet();

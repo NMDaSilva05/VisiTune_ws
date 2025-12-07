@@ -21,7 +21,6 @@
 
 #include "fatfs.h"
 
-
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <math.h>
@@ -33,7 +32,6 @@
 #include "packets.h"
 #include "sd_card.h"
 #include "tft.h"
-
 
 /* USER CODE END Includes */
 

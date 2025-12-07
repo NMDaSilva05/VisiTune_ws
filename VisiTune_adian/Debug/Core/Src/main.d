@@ -41,10 +41,10 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
  ../Middlewares/Third_Party/FatFs/src/diskio.h \
  ../Middlewares/Third_Party/FatFs/src/ff.h ../FATFS/Target/user_diskio.h \
  ../Core/Inc/MIDI.h \
- /Users/aidanbaker/Desktop/STM32/bandpass/VisiTune/Drivers/CMSIS/CMSIS-DSP/arm_math.h \
- ../Drivers/CMSIS/Include/cmsis_compiler.h ../Core/Inc/packets.h \
- ../Core/Inc/sd_card.h ../Core/Inc/main.h ../Core/Inc/tft.h \
- ../Core/Inc/eq_graph.h ../Core/Inc/ws2812.h
+ /home/nick/STM32CubeIDE/VisiTune_ws/VisiTune_adian/Drivers/CMSIS/CMSIS-DSP/arm_math.h \
+ ../Drivers/CMSIS/Include/cmsis_compiler.h ../Core/Inc/eq_graph.h \
+ ../Core/Inc/ws2812.h ../Core/Inc/main.h ../Core/Inc/packets.h \
+ ../Core/Inc/sd_card.h ../Core/Inc/tft.h
 ../Core/Inc/main.h:
 ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal.h:
 ../Core/Inc/stm32l4xx_hal_conf.h:
@@ -91,11 +91,11 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
 ../Middlewares/Third_Party/FatFs/src/ff.h:
 ../FATFS/Target/user_diskio.h:
 ../Core/Inc/MIDI.h:
-/Users/aidanbaker/Desktop/STM32/bandpass/VisiTune/Drivers/CMSIS/CMSIS-DSP/arm_math.h:
+/home/nick/STM32CubeIDE/VisiTune_ws/VisiTune_adian/Drivers/CMSIS/CMSIS-DSP/arm_math.h:
 ../Drivers/CMSIS/Include/cmsis_compiler.h:
-../Core/Inc/packets.h:
-../Core/Inc/sd_card.h:
-../Core/Inc/main.h:
-../Core/Inc/tft.h:
 ../Core/Inc/eq_graph.h:
 ../Core/Inc/ws2812.h:
+../Core/Inc/main.h:
+../Core/Inc/packets.h:
+../Core/Inc/sd_card.h:
+../Core/Inc/tft.h:

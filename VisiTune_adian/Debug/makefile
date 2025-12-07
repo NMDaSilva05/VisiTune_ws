@@ -38,34 +38,34 @@ $(wildcard ../makefile.init) \
 $(wildcard ../makefile.targets) \
 
 
-BUILD_ARTIFACT_NAME := VisiTune
+BUILD_ARTIFACT_NAME := VisiTune_adian
 BUILD_ARTIFACT_EXTENSION := elf
 BUILD_ARTIFACT_PREFIX :=
 BUILD_ARTIFACT := $(BUILD_ARTIFACT_PREFIX)$(BUILD_ARTIFACT_NAME)$(if $(BUILD_ARTIFACT_EXTENSION),.$(BUILD_ARTIFACT_EXTENSION),)
 
 # Add inputs and outputs from these tool invocations to the build variables 
 EXECUTABLES += \
-VisiTune.elf \
+VisiTune_adian.elf \
 
 MAP_FILES += \
-VisiTune.map \
+VisiTune_adian.map \
 
 SIZE_OUTPUT += \
 default.size.stdout \
 
 OBJDUMP_LIST += \
-VisiTune.list \
+VisiTune_adian.list \
 
 
 # All Target
 all: main-build
 
 # Main-build Target
-main-build: VisiTune.elf secondary-outputs
+main-build: VisiTune_adian.elf secondary-outputs
 
 # Tool invocations
-VisiTune.elf VisiTune.map: $(OBJS) $(USER_OBJS) /Users/aidanbaker/Desktop/STM32/bandpass/VisiTune/STM32L4R5ZITXP_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "VisiTune.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"/Users/aidanbaker/Desktop/STM32/bandpass/VisiTune/STM32L4R5ZITXP_FLASH.ld" --specs=nosys.specs -Wl,-Map="VisiTune.map" -Wl,--gc-sections -static -L"/Users/aidanbaker/Desktop/STM32/bandpass/VisiTune/Drivers/CMSIS/CMSIS-DSP" --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+VisiTune_adian.elf VisiTune_adian.map: $(OBJS) $(USER_OBJS) /home/nick/STM32CubeIDE/VisiTune_ws/VisiTune_adian/STM32L4R5ZITXP_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "VisiTune_adian.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"/home/nick/STM32CubeIDE/VisiTune_ws/VisiTune_adian/STM32L4R5ZITXP_FLASH.ld" --specs=nosys.specs -Wl,-Map="VisiTune_adian.map" -Wl,--gc-sections -static -L"/home/nick/STM32CubeIDE/VisiTune_ws/VisiTune_adian/Drivers/CMSIS/CMSIS-DSP" --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 
@@ -74,14 +74,14 @@ default.size.stdout: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
 	@echo 'Finished building: $@'
 	@echo ' '
 
-VisiTune.list: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-objdump -h -S $(EXECUTABLES) > "VisiTune.list"
+VisiTune_adian.list: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-objdump -h -S $(EXECUTABLES) > "VisiTune_adian.list"
 	@echo 'Finished building: $@'
 	@echo ' '
 
 # Other Targets
 clean:
-	-$(RM) VisiTune.elf VisiTune.list VisiTune.map default.size.stdout
+	-$(RM) VisiTune_adian.elf VisiTune_adian.list VisiTune_adian.map default.size.stdout
 	-@echo ' '
 
 secondary-outputs: $(SIZE_OUTPUT) $(OBJDUMP_LIST)
