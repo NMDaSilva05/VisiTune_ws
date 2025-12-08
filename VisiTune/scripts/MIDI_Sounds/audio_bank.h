@@ -1,12 +1,9 @@
-/*
- * MIDI.h
- *
- *  Created on: Nov 26, 2025
- *      Author: nick
- */
+// Auto-generated audio bank header
 
-#ifndef INC_MIDI_H_
-#define INC_MIDI_H_
+#ifndef AUDIO_BANK_H
+#define AUDIO_BANK_H
+
+#include <stdint.h>
 
 // ---- buildup ----
 const uint16_t buildup[] = {
@@ -787449,4 +787446,4 @@ const uint16_t rizz[] = {
 
 const uint32_t rizz_len = 46393;
 
-#endif /* INC_MIDI_H_ */
+#endif // AUDIO_BANK_H

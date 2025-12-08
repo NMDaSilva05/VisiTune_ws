@@ -127,10 +127,11 @@ char keyPress;
 uint32_t MIDI_index = 0;
 uint8_t MIDI_playing = 0;
 uint8_t sound_effect_index = 0;
-const uint16_t* MIDI_effects[] = {crowd_cheer, bass_kick, eh,     hi_hat,
-                                  medium_kick, snare1,    snare2, vine_boom};
-const uint32_t MIDI_lengths[] = {crowd_cheer_len, bass_kick_len, eh_len,     hi_hat_len,
-                                 medium_kick_len, snare1_len,    snare2_len, vine_boom_len};
+const uint16_t* MIDI_effects[] = {buildup, bass_kick, snare2, hi_hat, snare1, pluh,
+		crowd_cheer, medium_kick, record_scratch, bassdrop, vine_boom, clap, ayy, bell, whip, eh, rizz};
+const uint32_t MIDI_lengths[] = {buildup_len, bass_kick_len, snare2_len, hi_hat_len, snare1_len, pluh_len,
+		crowd_cheer_len, medium_kick_len, record_scratch_len, bassdrop_len,
+		vine_boom_len, clap_len, ayy_len, bell_len, whip_len, eh_len, rizz_len};
 
 // UART RX context
 typedef enum {
@@ -246,14 +247,6 @@ typedef struct {
     float b1, b2;
     // float z1, z2;
 } biquad_t;
-
-// static inline float biquad_run(biquad_t* bq, float in)
-//{
-//     float out = in * bq->a0 + bq->z1;
-//     bq->z1 = in * bq->a1 + bq->z2 - bq->b1 * out;
-//     bq->z2 = in * bq->a2 - bq->b2 * out;
-//     return out;
-// }
 
 // EQ LED GRAPH functions
 
@@ -1880,20 +1873,44 @@ static void MIDI_Check() {
             MIDI_playing = 1;
             break;
         case '7':
+            sound_effect_index = 8;
+            MIDI_index = 0;
+            MIDI_playing = 1;
             break;
         case '8':
+            sound_effect_index = 9;
+            MIDI_index = 0;
+            MIDI_playing = 1;
             break;
         case '9':
+            sound_effect_index = 10;
+            MIDI_index = 0;
+            MIDI_playing = 1;
             break;
         case 'C':
+            sound_effect_index = 11;
+            MIDI_index = 0;
+            MIDI_playing = 1;
             break;
         case '*':
+            sound_effect_index = 12;
+            MIDI_index = 0;
+            MIDI_playing = 1;
             break;
         case '0':
+            sound_effect_index = 13;
+            MIDI_index = 0;
+            MIDI_playing = 1;
             break;
         case '#':
+            sound_effect_index = 14;
+            MIDI_index = 0;
+            MIDI_playing = 1;
             break;
         case 'D':
+            sound_effect_index = 15;
+            MIDI_index = 0;
+            MIDI_playing = 1;
             break;
         default:
             break;
