@@ -1,0 +1,4 @@
+../Core/Src/packets.c:8:10:crc16_ccitt	48	static
+../Core/Src/packets.c:42:10:pkt_build	32	static
+../Core/Src/packets.c:102:10:create_image_data	32	static
+../Core/Src/packets.c:130:10:parse_and_apply_image_packet	56	static
