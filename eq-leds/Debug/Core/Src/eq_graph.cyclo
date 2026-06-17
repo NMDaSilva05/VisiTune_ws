@@ -1,0 +1,6 @@
+../Core/Src/eq_graph.c:49:17:xy_to_led_index	4
+../Core/Src/eq_graph.c:67:6:eq_graph_set	2
+../Core/Src/eq_graph.c:84:6:eq_graph_update_fft	7
+../Core/Src/eq_graph.c:113:6:eq_graph_test_columns	4
+../Core/Src/eq_graph.c:137:6:eq_graph_render	5
+../Core/Src/eq_graph.c:170:6:eq_graph_tick	2

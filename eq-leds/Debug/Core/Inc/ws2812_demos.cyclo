@@ -1,0 +1,2 @@
+../Core/Inc/ws2812_demos.c:36:6:ws2812_demos_set	1
+../Core/Inc/ws2812_demos.c:40:6:ws2812_demos_tick	6

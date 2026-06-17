@@ -1,0 +1,5 @@
+../Core/Inc/ws2812.c:37:13:ws2812_update_buffer	9
+../Core/Inc/ws2812.c:109:22:zeroLedValues	1
+../Core/Inc/ws2812.c:116:22:setLedValue	2
+../Core/Inc/ws2812.c:129:22:setLedValues	2
+../Core/Inc/ws2812.c:142:22:ws2812_init	2

@@ -1,0 +1,10 @@
+../Core/Src/main.c:71:5:_write	32	static
+../Core/Src/main.c:85:6:HAL_TIM_PWM_PulseFinishedHalfCpltCallback	16	static
+../Core/Src/main.c:94:6:HAL_TIM_PWM_PulseFinishedCallback	16	static
+../Core/Src/main.c:108:5:main	560	static
+../Core/Src/main.c:206:6:SystemClock_Config	96	static
+../Core/Src/main.c:257:13:MX_TIM4_Init	64	static
+../Core/Src/main.c:316:13:MX_USART1_UART_Init	8	static
+../Core/Src/main.c:362:13:MX_DMA_Init	16	static
+../Core/Src/main.c:381:13:MX_GPIO_Init	64	static
+../Core/Src/main.c:624:6:Error_Handler	4	static,ignoring_inline_asm
